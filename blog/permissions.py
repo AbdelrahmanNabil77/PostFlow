@@ -25,3 +25,12 @@ class IsAdminOrReadOnly(permissions.BasePermission):
         
         # Write permissions are only allowed to admin users
         return request.user and request.user.is_staff
+
+class IsAuthorOrAdmin(permissions.BasePermission):
+    """
+    Custom permission to only allow authors or admins to access.
+    """
+    
+    def has_object_permission(self, request, view, obj):
+        # Check if user is admin or the author
+        return request.user.is_staff or obj.author == request.user

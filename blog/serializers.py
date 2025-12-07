@@ -1,16 +1,6 @@
 from rest_framework import serializers
 from .models import BlogPost, Category, Tag
-from django.contrib.auth.models import User
-
-class UserBriefSerializer(serializers.ModelSerializer):
-    full_name = serializers.SerializerMethodField()
-    
-    class Meta:
-        model = User
-        fields = ('id', 'username', 'full_name')
-    
-    def get_full_name(self, obj):
-        return f"{obj.first_name} {obj.last_name}"
+from accounts.serializers import UserBriefSerializer
 
 class CategorySerializer(serializers.ModelSerializer):
     post_count = serializers.IntegerField(read_only=True)
@@ -20,9 +10,11 @@ class CategorySerializer(serializers.ModelSerializer):
         fields = ('id', 'name', 'description', 'created_at', 'post_count')
 
 class TagSerializer(serializers.ModelSerializer):
+    post_count = serializers.IntegerField(read_only=True)
+    
     class Meta:
         model = Tag
-        fields = ('id', 'name', 'created_at')
+        fields = ('id', 'name', 'created_at', 'post_count')
 
 class BlogPostListSerializer(serializers.ModelSerializer):
     author = UserBriefSerializer(read_only=True)
@@ -34,19 +26,17 @@ class BlogPostListSerializer(serializers.ModelSerializer):
     class Meta:
         model = BlogPost
         fields = (
-            'id', 'title', 'slug', 'excerpt', 'author', 'category',
+            'id', 'title', 'excerpt', 'author', 'category',
             'tags', 'published_date', 'status', 'view_count',
             'is_featured', 'read_time', 'created_at'
         )
-        read_only_fields = ('slug', 'published_date', 'view_count')
+        read_only_fields = ('published_date', 'view_count')
     
     def get_excerpt(self, obj):
-        return obj.content[:150] + '...' if len(obj.content) > 150 else obj.content
+        return obj.excerpt
     
     def get_read_time(self, obj):
-        # Assuming average reading speed of 200 words per minute
-        word_count = len(obj.content.split())
-        return max(1, word_count // 200)
+        return obj.read_time
 
 class BlogPostDetailSerializer(serializers.ModelSerializer):
     author = UserBriefSerializer(read_only=True)
@@ -63,8 +53,7 @@ class BlogPostDetailSerializer(serializers.ModelSerializer):
         model = BlogPost
         fields = '__all__'
         read_only_fields = (
-            'slug', 'published_date', 'view_count',
-            'created_at', 'updated_at', 'author'
+            'author', 'view_count', 'created_at', 'updated_at'
         )
     
     def to_representation(self, instance):

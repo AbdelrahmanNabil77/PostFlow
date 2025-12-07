@@ -36,7 +36,6 @@ class BlogPost(models.Model):
         max_length=200,
         validators=[MinLengthValidator(5, "Title must be at least 5 characters long")]
     )
-    slug = models.SlugField(max_length=250, unique_for_date='published_date')
     content = models.TextField(
         validators=[MinLengthValidator(50, "Content must be at least 50 characters long")]
     )
@@ -69,6 +68,7 @@ class BlogPost(models.Model):
             models.Index(fields=['-published_date']),
             models.Index(fields=['status']),
             models.Index(fields=['author']),
+            models.Index(fields=['category']),
         ]
     
     def __str__(self):
@@ -82,3 +82,13 @@ class BlogPost(models.Model):
     @property
     def is_published(self):
         return self.status == self.Status.PUBLISHED
+    
+    @property
+    def excerpt(self):
+        return self.content[:150] + '...' if len(self.content) > 150 else self.content
+    
+    @property
+    def read_time(self):
+        # Assuming average reading speed of 200 words per minute
+        word_count = len(self.content.split())
+        return max(1, word_count // 200)

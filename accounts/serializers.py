@@ -40,11 +40,26 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
+    post_count = serializers.SerializerMethodField()
     
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'full_name')
-        read_only_fields = ('id', 'username', 'email')
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'full_name', 'post_count', 'date_joined')
+        read_only_fields = ('id', 'username', 'email', 'date_joined', 'post_count')
+    
+    def get_full_name(self, obj):
+        return f"{obj.first_name} {obj.last_name}"
+    
+    def get_post_count(self, obj):
+        return obj.blog_posts.count()
+
+
+class UserBriefSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'full_name')
     
     def get_full_name(self, obj):
         return f"{obj.first_name} {obj.last_name}"
