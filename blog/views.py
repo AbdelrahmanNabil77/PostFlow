@@ -9,7 +9,8 @@ from .serializers import (
     BlogPostListSerializer, BlogPostDetailSerializer,
     CategorySerializer, TagSerializer
 )
-from .permissions import IsAuthorOrReadOnly, IsAdminOrReadOnly
+from .permissions import IsAuthorOrReadOnly, IsAdminOrReadOnly, IsAuthorOrAdmin
+from .filters import BlogPostFilter
 from django.utils import timezone
 
 class CategoryViewSet(viewsets.ModelViewSet):
@@ -27,7 +28,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 class TagViewSet(viewsets.ModelViewSet):
-    queryset = Tag.objects.all()
+    queryset = Tag.objects.annotate(post_count=Count('blog_posts'))
     serializer_class = TagSerializer
     permission_classes = [IsAdminOrReadOnly]
     filter_backends = [filters.SearchFilter]
@@ -44,8 +45,8 @@ class BlogPostViewSet(viewsets.ModelViewSet):
     serializer_class = BlogPostDetailSerializer
     permission_classes = [IsAuthorOrReadOnly]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['category', 'status', 'author', 'is_featured']
-    search_fields = ['title', 'content', 'tags__name', 'author__username']
+    filterset_class = BlogPostFilter
+    search_fields = ['title', 'content', 'author__username', 'category__name', 'tags__name']
     ordering_fields = ['published_date', 'created_at', 'view_count', 'title']
     ordering = ['-published_date']
     
@@ -54,10 +55,10 @@ class BlogPostViewSet(viewsets.ModelViewSet):
         
         # Filter based on user permissions
         if self.request.user.is_authenticated:
-            # Authenticated users can see their own drafts and all published posts
             if self.request.user.is_staff:
                 # Admins can see all posts
                 return queryset
+            # Authenticated users can see their own drafts and all published posts
             return queryset.filter(
                 Q(status='published') | Q(author=self.request.user)
             )
@@ -89,7 +90,7 @@ class BlogPostViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(post)
         return Response(serializer.data)
     
-    @action(detail=True, methods=['get'])
+    @action(detail=True, methods=['post'])
     def increment_views(self, request, pk=None):
         post = self.get_object()
         post.view_count += 1
@@ -129,34 +130,24 @@ class BlogPostViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     @action(detail=False, methods=['get'], permission_classes=[AllowAny])
-    def search(self, request):
-        query = request.query_params.get('q', '')
-        if not query:
-            return Response(
-                {"error": "Search query is required"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
+    def featured(self, request):
         posts = BlogPost.objects.filter(
-            Q(title__icontains=query) |
-            Q(content__icontains=query) |
-            Q(tags__name__icontains=query) |
-            Q(author__username__icontains=query),
+            is_featured=True,
             status='published'
-        ).distinct()
-        
-        # Apply additional filters if provided
-        category = request.query_params.get('category')
-        if category:
-            posts = posts.filter(category_id=category)
-        
-        tag = request.query_params.get('tag')
-        if tag:
-            posts = posts.filter(tags__id=tag)
-        
-        published_date = request.query_params.get('published_date')
-        if published_date:
-            posts = posts.filter(published_date__date=published_date)
-        
+        ).order_by('-published_date')
+        serializer = BlogPostListSerializer(posts, many=True, context={'request': request})
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    def recent(self, request):
+        posts = BlogPost.objects.filter(
+            status='published'
+        ).order_by('-published_date')[:10]
+        serializer = BlogPostListSerializer(posts, many=True, context={'request': request})
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'], permission_classes=[IsAuthenticated])
+    def my_posts(self, request):
+        posts = BlogPost.objects.filter(author=request.user)
         serializer = BlogPostListSerializer(posts, many=True, context={'request': request})
         return Response(serializer.data)
